@@ -182,10 +182,10 @@ class Objective(object):
         stp = trial.suggest_categorical('stp',[1,2,3,4])
         do = trial.suggest_categorical('do',[0.3,0.4,0.5])
         bn = trial.suggest_categorical('bn',[True,False])
-        md = trial.suggest_categorical('md',[2,4,8,16])
+        md = trial.suggest_categorical('md',[2,4,8,16,32])
         nfilters = trial.suggest_categorical('nfilters',[4,8,16,32])
         activation = trial.suggest_categorical('activation',['LeakyReLU','ReLU'])
-        bs = trial.suggest_categorical('bs',[16,32,64])
+        bs = trial.suggest_categorical('bs',[16,32,64,128])
         wl = trial.suggest_categorical('wl',[True,False])
         
         dict_params = {'ks':ks,
@@ -228,24 +228,28 @@ class Objective(object):
         filepath = f'{self.path_models}{self.variable}/model_{self.week}_v9.h5'
         checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=0, save_best_only=True, 
                                      mode='auto',save_weights_only=False)
-        if 'wl'==True:
-            h = cnn_model.fit(self.X_train, self.y_train, batch_size=dict_params['bs'],\
-                epochs=epochs,verbose=0,validation_data=(self.X_val, self.y_val), \
-                callbacks=[checkpoint,earlystop],class_weight = d_class_weights) #TFKerasPruningCallback(trial, "val_loss")
-        else:
-            h = cnn_model.fit(self.X_train, self.y_train, batch_size=dict_params['bs'],\
-                epochs=epochs,verbose=0,validation_data=(self.X_val, self.y_val), \
-                callbacks=[checkpoint,earlystop]) #TFKerasPruningCallback(trial, "val_loss")
         
-        
-        
-        cnn_model.load_weights(filepath)
-        y_val_predicted = cnn_model.predict(self.X_val)
-        brier_val = brier_multi(self.y_val,y_val_predicted)
-        acc_val = accuracy_score(np.argmax(self.y_val,axis=1),np.argmax(y_val_predicted,axis=1))
-        
-        validation_loss = np.min(h.history['val_loss'])
-        return brier_val#, acc_val
+        try:
+            if 'wl'==True:
+                h = cnn_model.fit(self.X_train, self.y_train, batch_size=dict_params['bs'],\
+                    epochs=epochs,verbose=0,validation_data=(self.X_val, self.y_val), \
+                    callbacks=[checkpoint,earlystop],class_weight = d_class_weights) #TFKerasPruningCallback(trial, "val_loss")
+            else:
+                h = cnn_model.fit(self.X_train, self.y_train, batch_size=dict_params['bs'],\
+                    epochs=epochs,verbose=0,validation_data=(self.X_val, self.y_val), \
+                    callbacks=[checkpoint,earlystop]) #TFKerasPruningCallback(trial, "val_loss")
+
+
+
+            cnn_model.load_weights(filepath)
+            y_val_predicted = cnn_model.predict(self.X_val)
+            brier_val = brier_multi(self.y_val,y_val_predicted)
+            acc_val = accuracy_score(np.argmax(self.y_val,axis=1),np.argmax(y_val_predicted,axis=1))
+
+            validation_loss = np.min(h.history['val_loss'])
+            return brier_val#, acc_val
+        except:
+            return 1000
 
 def logging_callback(study, frozen_trial):
     previous_best_value = study.user_attrs.get("previous_best_value", None)
@@ -317,7 +321,7 @@ for var_short, variable in zip(name_var,variables):
         #     print(f"Best value: {study.best_value}, Best params: {study.best_trial.params}")
 
         number_of_random_points = 30  # random searches to start opt process
-        maximum_time = 0.16*60*60  # seconds
+        maximum_time = 0.96*60*60  # seconds
         objective = Objective(X_train,y_train,X_val,y_val,path_models,variable,week,d_class_weights)
 
         results_directory = f'/glade/work/jhayron/Weather_Regimes/models/CNN/results_optuna/{week}/'
